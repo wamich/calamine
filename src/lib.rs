@@ -88,7 +88,7 @@ use std::borrow::Cow;
 use std::cmp::{max, min};
 use std::fmt;
 use std::fs::File;
-use std::io::{BufReader, Read, Seek};
+use std::io::{BufReader, Cursor, Read, Seek};
 use std::ops::{Index, IndexMut};
 use std::path::Path;
 
@@ -214,6 +214,14 @@ where
     R::new(file)
 }
 
+/// Convenient function to open memory bytes with a Cursor<&[u8]>
+pub fn open_workbook_bytes<'a, R>(bytes: &'a [u8]) -> Result<R, R::Error>
+where
+    R: Reader<RS = Cursor<&'a [u8]>>,
+{
+    R::new(Cursor::new(bytes))
+}
+
 /// A trait to constrain cells
 pub trait CellType: Default + Clone + PartialEq {}
 impl<T: Default + Clone + PartialEq> CellType for T {}
@@ -267,8 +275,8 @@ impl<T: CellType> Range<T> {
     pub fn new(start: (u32, u32), end: (u32, u32)) -> Range<T> {
         assert!(start <= end, "invalid range bounds");
         Range {
-            start: start,
-            end: end,
+            start,
+            end,
             inner: vec![T::default(); ((end.0 - start.0 + 1) * (end.1 - start.1 + 1)) as usize],
         }
     }
@@ -313,7 +321,7 @@ impl<T: CellType> Range<T> {
         }
     }
 
-    /// Get column width
+    /// Get column height
     #[inline]
     pub fn height(&self) -> usize {
         if self.is_empty() {
@@ -537,7 +545,6 @@ impl<T: CellType> Range<T> {
     ///
     /// ```
     /// # use calamine::{Reader, Error, open_workbook, Xlsx, RangeDeserializerBuilder};
-    /// # fn main() { example().unwrap(); }
     /// fn example() -> Result<(), Error> {
     ///     let path = format!("{}/tests/temperature.xlsx", env!("CARGO_MANIFEST_DIR"));
     ///     let mut workbook: Xlsx<_> = open_workbook(path)?;
